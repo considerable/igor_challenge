@@ -1,0 +1,59 @@
+# s3-static-playbook.yml
+---
+
+- hosts: localhost
+  vars:
+    bucket_name: igor-challenge
+    region: us-west-2
+    test_url: http://{{ bucket_name }}.s3-website-{{ region }}.amazonaws.com
+    test_msg: |
+      Test the website in a browser:
+        open {{ test_url }}    # should return index.html
+        open {{ test_url }}/x  # also index.html w/o 404
+
+  tasks:
+
+  - name: Step 1. Create a S3 bucket
+    command: >
+      aws s3 mb s3://{{ bucket_name }} --region {{ region }}
+    register: step_1
+    failed_when: "'BucketAlreadyExists' in step_1.stderr"
+
+  - name: Step 2. Redirect everything to /index.html 
+    command: >
+      aws s3 website "s3://{{ bucket_name }}" 
+        --index-document index.html
+        --error-document index.html
+
+  - name: Step 3. Edit Block Public Access settings
+    command: >
+      aws s3api put-public-access-block
+        --public-access-block-configuration
+        "BlockPublicAcls=false,IgnorePublicAcls=false,
+        BlockPublicPolicy=false,RestrictPublicBuckets=false"
+        --bucket {{ bucket_name }}
+
+  - name: Step 4. Add a bucket policy that makes your bucket content publicly available
+    command: >
+      aws s3api put-bucket-policy
+        --bucket {{ bucket_name }}
+        --policy '{
+          "Version":"2012-10-17",
+          "Statement":[{
+            "Sid":"PublicReadGetObject",
+            "Effect":"Allow",
+            "Principal": "*",
+            "Action":["s3:GetObject"],
+            "Resource":["arn:aws:s3:::{{ bucket_name }}/*"]
+            }]
+          }' 
+
+  - name: Step 5. Upload your website content to your bucket
+    command: aws s3 sync ./app s3://{{ bucket_name }}
+
+  - name: Step 6. Test the website in a browser
+    debug: msg={{ test_msg.split('\n') }}
+
+  - name: Step 7. Delete the bucket
+    debug: msg="aws s3 rb s3://{{ bucket_name }} --force"
+    
