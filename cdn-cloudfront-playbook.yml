@@ -1,0 +1,93 @@
+# cdn-cloudfront-playbook.yml
+# 
+# CloudFront distribution acting as a CDN for a S3-hosted static website, 
+# using the default CloudFront certificate and redirecting HTTP to HTTPS.
+#
+# Depends on: s3-static-playbook.yml
+#
+---
+
+- hosts: localhost
+  vars:
+    bucket_name: igor-challenge
+    region: us-west-2
+    bucket_url: http://{{ bucket_name }}.s3-website-{{ region }}.amazonaws.com
+      
+  tasks:
+
+  - name: Step 1. Ensure the S3 static website is deployed 
+    ansible.builtin.uri:
+      url: "{{ bucket_url }}"
+      status_code: 200
+
+  - name: Step 2. Create a CloudFront distribution
+    command: >
+      aws cloudfront create-distribution --distribution-config '
+      {
+      "CallerReference": "cf-{{ bucket_name }}-1",
+      "Comment": "CDN for {{ bucket_name }}",
+      "Origins": {
+        "Quantity": 1,
+        "Items": [{
+            "Id": "{{ bucket_name }}",
+            "DomainName": "{{ bucket_name }}.s3.amazonaws.com",
+            "S3OriginConfig": {
+                "OriginAccessIdentity": ""
+            }
+        }]
+      },
+      "DefaultCacheBehavior": {
+        "TargetOriginId": "{{ bucket_name }}",
+        "ViewerProtocolPolicy": "redirect-to-https",
+        "TrustedSigners": {
+            "Quantity": 0,
+            "Enabled": false
+        },
+        "ForwardedValues": {
+            "Cookies": {"Forward": "all"},
+            "Headers": {"Quantity": 0},
+            "QueryString": false,
+            "QueryStringCacheKeys": {"Quantity": 0}
+        },
+        "DefaultTTL": 86400,
+        "MinTTL": 3600
+      },
+      "ViewerCertificate": {
+        "MinimumProtocolVersion": "TLSv1.2_2019",
+        "CloudFrontDefaultCertificate": true
+      },
+      "DefaultRootObject": "index.html",
+      "Enabled": true
+      }
+      '
+    ignore_errors: yes
+
+  - name: Step 3. Wait for the distribution to be deployed
+    command: >
+      aws cloudfront list-distributions --output json --query 
+        'DistributionList.Items[*].[Status,Id,DomainName,Origins.Items[0].DomainName]'
+    register: step_3
+    until: step_3.stdout.find("Deployed") != -1
+    retries: 10
+    delay: 20
+
+  - name: Step 4. Find the distribution URL
+    command: >
+      aws cloudfront list-distributions --output text 
+        --query 'DistributionList.Items[*].[DomainName]'
+    register: step_4
+    
+  - name: Step 5. Test the website via HTTPS, https://{{ step_4.stdout }}
+    command: >
+      curl -s -o /dev/null -w "%{http_code}" https://{{ step_4.stdout }}
+    register: step_5
+    failed_when: step_5.stdout != "200"
+
+  - name: Step 6. Test the redirect via HTTP, http://{{ step_4.stdout }}
+    command: >
+      curl -s -o /dev/null -w "%{http_code}" http://{{ step_4.stdout }}
+    register: step_6
+    failed_when: step_6.stdout != "301"
+
+  - name: Step 7. Clean up
+    debug: msg="Delete the distribution then delete the bucket"
