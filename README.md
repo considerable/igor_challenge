@@ -22,11 +22,11 @@ The application is up and running for testing as follows:
 │   └── index.html
 ├── cdn-cloudfront-playbook.yml
 ├── s3-static-playbook.yml
-└── src
+└── code
     ├── input.txt
     └── validate_credit_card_numbers.py
 ```
-`Dockerfile` helps to run Ansible with AWS CLI on Mac, `README.md` - this file, `app` contains the static web application for deployment, `s3-static-playbook.yml` is a playbook to host the application, `cdn-cloudfront-playbook.yml` is a playbook to provide the http-to-https redirection and CDN-style content distribution at scale via AWS CloudFront, `src` contains Python solution to the coding part of igor_challenge.
+`Dockerfile` helps to run Ansible with AWS CLI on Mac, `README.md` - this file, `app` contains the static web application for deployment, `s3-static-playbook.yml` is a playbook to host the application, `cdn-cloudfront-playbook.yml` is a playbook to provide the http-to-https redirection and CDN-style content distribution at scale via AWS CloudFront, `code` contains Python solution to the coding part of igor_challenge.
 
 # 2. Coding
 
