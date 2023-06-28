@@ -22,3 +22,4 @@ RUN yum install -y unzip; \
    unzip /tmp/awscliv2.zip -d /usr/local; \
    /usr/local/aws/install --bin-dir /usr/local/bin --install-dir /usr/local/aws-cli --update; \
    rm -rf /tmp/awscliv2.zip /usr/local/aws
+
